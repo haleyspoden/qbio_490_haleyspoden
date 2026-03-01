@@ -1,0 +1,176 @@
+---
+title: "Introduction to MAF"
+author: Erika Li, Jeanne Revilla, Mahija Mogalipuvvu, adapted from Nicole Black, Wade Boohar
+date: 07/17/22
+updated: 9/29/2025
+---
+
+***Deliverables***
+- upload this R Notebook to your GitHub and submit the link to your Repo on Brightspace
+- include ALL graphs or figures created in this assignment in a folder with your R notebook with descriptive file names.
+
+We encourage you to work with a partner. Therefore, it is okay if your answers are the same as your partner’s as long as everyone understands it and could explain it in their own words if asked. Each person must individually push their code to Github. *At the top of your R Notebook, write the name of you and your partner(s) as a comment.*
+
+***Complete the following coding activity and answer any following questions as comments in your R Notebook***
+
+In this assignment, you will need to use your skills learned in class to demonstrate your understanding of categorical variables and R data structures.
+
+*Pre-Assignment*
+Load all necessary packages, read in the clinical data.csv file you have in your analysis_data folder, and instantiate the MAF_object.
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath("/home1/spoden/490_cluster/analysis.data"))
+```
+
+```{r}
+library(BiocManager)
+library(maftools)
+library(TCGAbiolinks)
+library(ggplot2)
+```
+
+```{r}
+clinical <- read.csv("/home1/spoden/490_cluster/analysis_data/brca_clinical_data.csv")
+```
+
+```{r}
+maf_query <- GDCquery(
+  project = 'TCGA-BRCA',
+  data.category = "Simple Nucleotide Variation",
+  access = "open",
+  data.type = "Masked Somatic Mutation",
+  workflow.type = "Aliquot Ensemble Somatic Variant Merging and Masking"
+)
+
+#GDCdownload(maf_query)
+
+setwd("/home1/spoden/490_cluster/analysis_data")
+
+maf <- GDCprepare(maf_query) 
+
+maf_object <- read.maf(maf = maf,
+                       clinicalData = clinical, 
+                       isTCGA = TRUE)
+```
+
+
+It's useful to save your MAF_object, so that you don't have to go through the trouble of querying and preparing it everytime. The saveRDS function allows us to save an R object, allowing us to access it directly from our files. 
+```{r}
+saveRDS(maf_object, file = "/home1/spoden/490_cluster/analysis_data/maf_object.rds")
+# ex. saveRDS(MAF_object, file = "/home1/erika/490_cluster/analysis_data/maf_object.rds")
+```
+
+When you reopen a new R session and want to access your MAF_object, you can use the readRDS function to load the object back into a new variable.
+```{r}
+maf_object <- readRDS(file = "/home1/spoden/490_cluster/analysis_data/maf_object.rds")
+# ex. MAF_object <- readRDS(file = "/home1/erika/490_cluster/analysis_data/maf_object.rds")
+```
+
+*1*
+Choose a clinical variable (or any variable from clin_rad or clin_drug) to separate your populations into two different groups and rewrite the column or create a new column with that variable as a factor. ***Do not use age or vital_status as your clinical variable.*** Hint: if your variable is continuous, you will need to determine your own cutoffs for the different levels of the factor. If your variable is categorical and has more than two possible values, choose the two that are the most common.
+```{r}
+maf_object@clinical.data$er_status_group <- ifelse(
+  maf_object@clinical.data$er_status_by_ihc == "Positive", "Positive",
+  ifelse(maf_object@clinical.data$er_status_by_ihc == "Negative", "Negative", NA)
+)
+
+maf_object@clinical.data$er_status_new <- factor(maf_object@clinical.data$er_status_new)
+```
+
+
+*2*
+Create a co-oncoplot with the top 10-20 (you choose) most mutated genes for the two groups. Pick one that has a large discrepancy in % mutated or type of mutations between the groups and research it. 
+Research it. What is the gene used for? Can you think of any reason for the discrepancy?
+```{r}
+#make mask
+er_pos_mask <- ifelse(maf_object@clinical.data$er_status_group == 'Positive', T, F)
+#extract barcodes
+er_pos_barcodes <- maf_object@clinical.data$Tumor_Sample_Barcode[er_pos_mask]
+#use barcodes to subset/split object
+er_pos_maf <- subsetMaf(maf = maf_object,
+                        tsb = er_pos_barcodes)
+
+er_neg_mask <- ifelse(maf_object@clinical.data$er_status_group == 'Negative', T, F)
+er_neg_barcodes <- maf_object@clinical.data$Tumor_Sample_Barcode[er_neg_mask]
+er_neg_maf <- subsetMaf(maf = maf_object,
+                        tsb = er_neg_barcodes)
+
+m1.genes = getGeneSummary(er_pos_maf)[1:10]
+m2.genes = getGeneSummary(er_neg_maf)[1:10]
+mdt = merge(m1.genes[,.(Hugo_Symbol, MutatedSamples)], m2.genes[,.(Hugo_Symbol, MutatedSamples)], by = 'Hugo_Symbol', all = TRUE)
+mdt$MutatedSamples.x[is.na(mdt$MutatedSamples.x)] = 0
+mdt$MutatedSamples.y[is.na(mdt$MutatedSamples.y)] = 0
+mdt$max = apply(mdt[,.(MutatedSamples.x, MutatedSamples.y)], 1, max)
+mdt = mdt[order(max, decreasing = TRUE)]
+
+top_genes = mdt$Hugo_Symbol[1:20]
+
+#co-oncoplot (positive vs negative)
+coOncoplot(m1 = er_pos_maf, 
+           m2 = er_neg_maf,
+           m1Name = "ER Positive", 
+           m2Name = "ER Negative", 
+           genes = top_genes,
+           borderCol = NA)
+```
+TP53 has a large discrepancy because it is mutated 21% in ER Positive and 81% in ER Negative which is a significant difference. TP53 is used for encoding the p53 protein which is a critical tumor suppressor protein. There is a discrepancy between its mutation rate in ER+ vs ER- tumors because ER- tumors are more aggressive, making TP53 loss of function a key driver, while ER+ tumors rely more on hormone signaling pathways for growth rather than needing to get rid of TP53's function. 
+
+*3*
+Create a contingency table with your variable and chosen gene. Run a Fisher’s Exact Test between presence of mutations for that gene and your clinical variable. Create and save a mosaic plot. 
+Interpret the output of the Fisher’s Exact Test in terms of the odds ratio and p-value.
+```{r}
+maf_object@clinical.data$er_status_group <- factor(maf_object@clinical.data$er_status_group)
+
+tp53_mutations <- maf_object@data[maf_object@data$Hugo_Symbol == "TP53", ]
+mutated_samples <- unique(tp53_mutations$Tumor_Sample_Barcode)
+
+maf_object@clinical.data$TP53_mutation <- ifelse(maf_object@clinical.data$Tumor_Sample_Barcode %in% mutated_samples, 
+                                                   "Mutated", "Wild-type")
+maf_object@clinical.data$TP53_mutation <- factor(maf_object@clinical.data$TP53_mutation)
+
+contig <- table(maf_object@clinical.data$er_status_group, maf_object@clinical.data$TP53_mutation)
+print(contig)
+
+mosaicplot(contig)
+
+fisher_test <- fisher.test(contig)
+fisher_test$p.value
+print(fisher_test)
+```
+The p-value is <2.2e-16 which less than 0.05 and extremely low which means that there is a very statistically significant association between TP53 mutation and ER status. The odds ratio of 16.47971 means that the odds of having a mutated TP53 gene is about 16.5x higher in ER- patients than ER+ patients. 
+
+*4*
+Subset your maf_object based on your chosen clinical variable and create a co-lollipop plot of your chosen gene divided between the two different clinical variable possibilities. Include descriptive names on your plot.
+Do you notice any difference in terms of mutations (e.g. sites, types, number) between the two populations?
+```{r}
+er_pos_maf <- subsetMaf(maf = maf_object,
+                        tsb = maf_object@clinical.data$Tumor_Sample_Barcode[maf_object@clinical.data$er_status_group == 'Positive'])
+
+er_neg_maf <- subsetMaf(maf = maf_object,
+                        tsb = maf_object@clinical.data$Tumor_Sample_Barcode[maf_object@clinical.data$er_status_group == 'Negative'])
+
+lollipopPlot2(m1 = er_pos_maf,
+              m2 = er_neg_maf,
+              m1_name = "ER Positive",
+              m2_name = "ER Negative",
+              gene = "TP53")
+```
+There is a difference between the ER+ and ER- populations despite the mutations being concentrated mainly on the p53 protein for both. The ER- group has a much highre number of mutations spread across the protein than the ER+ group. Also, the ER- group looks to have more types of mutations than the ER+ group. 
+
+*5*
+Create your Overall_Survival_Status column and create a mafSurvival KM plot based on mutations in your chosen gene.
+Does there seem to be a difference? Hypothesize why or not based on the other analysis you did with the gene above.
+```{r}
+maf_object@clinical.data$survival_time <- ifelse(maf_object@clinical.data$vital_status == "Dead",
+                                                  maf_object@clinical.data$death_days_to,
+                                                  maf_object@clinical.data$last_contact_days_to)
+
+maf_object@clinical.data$Overall_Survival_Status <- ifelse(maf_object@clinical.data$vital_status == "Dead", 1, 0)
+
+mafSurvival(maf = maf_object,
+            genes = "TP53",
+            time = "survival_time",
+            Status = "Overall_Survival_Status",
+            isTCGA = TRUE)
+```
+
+There does seem to be a slight difference because the survival probability for the WT tends to be higher than that of the mutant. However, it is not a statistically significant difference since the p-value is 0.0858 which is greater than 0.05. I hypothesize that there is only a slight difference despite how strongly the TP53 mutation was associated with ER- status in previous plots because the ER- patients may receive more aggressive treatments since it is the more aggressive type of cancer. 
