@@ -1,0 +1,23 @@
+---
+title: "Methylation_Q3"
+output: html_document
+date: "2026-03-22"
+---
+
+3 genes: MMP14, PRRX1, SERPINB5
+
+MMP14:
+The UCSC Genome Browser visualization of MMP14 shows that the gene is located on chromosome 14 and contains multiple exons and introns visible in the GENCODE and MANE tracks. A CpG island is clearly visible at the promoter region of MMP14, which is significant because methylation of CpG islands near promoters is commonly associated with gene silencing. This CpG island at the promoter supports my earlier finding that MMP14 may be hypermethylated in metastatic breast cancer patients, potentially contributing to changes in its expression.
+
+PRRX1:
+The UCSC Genome Browser visualization of PRRX1 shows that the gene is located on chromosome 1 and spans a large genomic region with multiple exons visible in the GENCODE and MANE tracks. A small CpG island (CpG: 70) is visible near the promoter region at the far left of the gene, and EPDnew promoter marks are also present in that same region. The UniProt track shows limited protein domain annotations compared to MMP14, consistent with PRRX1 being a transcription factor rather than a membrane-bound protein. The presence of a CpG island near the promoter supports the possibility that hypermethylation in this region could silence PRRX1 expression in metastatic breast cancer patients.
+
+SERPINB5:
+The UCSC Genome Browser visualization of SERPINB5 shows that the gene is located on chromosome 18 and has multiple exons visible in the GENCODE and MANE tracks. There is no visible CpG island near the promoter region of SERPINB5, which is different from MMP14 and PRRX1, suggesting that methylation may not be regulating this gene through the classic promoter CpG island silencing mechanism. Given the absence of a CpG island at the promoter, we cannot conclude that hypermethylation is responsible for any changes in SERPINB5 expression between metastatic and non-metastatic patients.
+
+MMP14 Article: "MMP14 and DDR2 are potential molecular markers for metastatic triple-negative breast cancer"
+
+This study on triple-negative breast cancer (TNBC) found that MMP14 expression was significantly correlated with metastatic TNBC compared to non-metastatic TNBC, and proposed MMP14 as a potential molecular marker for detecting metastatic breast cancer. This supports my finding that MMP14 shows expression differences between metastatic and non-metastatic BRCA patients. However, this article focuses on protein expression rather than DNA methylation, so it does not directly address whether hypermethylation is the mechanism driving MMP14 changes. This suggests that while MMP14 is clearly involved in metastasis, the regulatory mechanism may be more complex than methylation alone, which is consistent with my observation that the relationship between MMP14 methylation and expression was not straightforward in the dataset.
+
+APA citation:
+Al-Temaimi, R., Ahmad, R., & Al-Mulla, F. (2025). MMP14 and DDR2 are potential molecular markers for metastatic triple-negative breast cancer. Scientific reports, 15(1), 21630. https://doi.org/10.1038/s41598-025-05538-4

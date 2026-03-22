@@ -1,0 +1,66 @@
+---
+title: "Methylation_volcano"
+output: html_document
+date: "2026-03-22"
+---
+
+```{r setup}
+knitr::opts_knit$set(root.dir = normalizePath("/home1/spoden/490_cluster/analysis_data/"))
+```
+
+```{r}
+library(TCGAbiolinks)
+library(sesame)
+library(sesameData)
+library(limma)
+library(ggplot2)
+```
+
+```{r}
+methylation_clinical <- read.csv('brca_methylation_clinical.csv', row.names = 1)
+betas <- read.csv('brca_methylation_betas.csv', row.names = 1)
+cpg_sites <- read.csv('brca_cpg_sites.csv', row.names = 1)
+```
+
+#(1) Naive Differential Methylation
+```{r}
+# Filter to Metastatic and Primary solid Tumor only
+met_mask <- methylation_clinical$definition %in% c("Metastatic", "Primary solid Tumor")
+methylation_clinical <- methylation_clinical[met_mask, ]
+betas_clean <- betas[, met_mask]
+
+# Create comparison variable
+methylation_clinical$is_metastatic <- methylation_clinical$definition == "Metastatic"
+
+# Fit linear model
+mval <- t(apply(betas_clean, 1, function(x) log2(x/(1-x))))
+design <- model.matrix(~is_metastatic, data = methylation_clinical)
+fit <- lmFit(mval, design)
+fit2 <- eBayes(fit)
+```
+
+```{r}
+#Extracting model into dataframe
+dat <- data.frame(foldchange = fit[["coefficients"]][,2], logPvalue =  -log10(p.adjust(fit2[["p.value"]][,2],method='BY')), geneName = cpg_sites$gene)
+dat$threshold <- as.factor(abs(dat$foldchange) < 1)
+
+#Visualization
+cols <- c("TRUE" = "grey", "FALSE" = "blue")
+ggplot(data=dat, aes(x=foldchange, y = logPvalue)) +
+  geom_point(alpha=.2, size=0.6) +
+  scale_colour_manual(values = cols) +
+  geom_vline(xintercept = 1, colour="#990000", linetype="dashed") + 
+  geom_vline(xintercept = - 1, colour="#990000", linetype="dashed") +
+  geom_hline(yintercept = 2, colour = "#990000", linetype="dashed") +
+  theme(legend.position="none") +
+  xlab("Fold Change") +
+  ylab("-log10 p value") +
+  theme_bw() +
+  theme(legend.position = "none")
+
+#Saving results to a .csv file
+write.csv(dat, "methylation_results_metastasis.csv")
+```
+
+Analysis: 
+The volcano plot shows that most CpG sites have no significant methylation differences between metastatic and non-metastatic patients since most points are below the significance threshold. There are more significantly hypomethylated sites (upper left) than hypermethylated sites (upper right), which suggests that metastatic pateitns tend to lose methylation than gain it. Therefore, the plot shows that hypomethylation may play a role in metastatic breast cancer. 
